@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Learning Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .hidden { display: none; }
+        .star {
+            font-size: 2rem;
+            color: #FFD700; /* Gold for active stars */
+            cursor: pointer;
+        }
+        .star.inactive { color: #e4e5e9; /* Gray for inactive stars */ }
+        .nav-buttons { margin-top: 20px; }
+        .content-box {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <h1 class="text-4xl text-center font-extrabold text-gray-800 my-5">English Learning Chatbot</h1>
+    <div id="content" class="max-w-3xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+        <!-- Step 1: Enter Keywords -->
+        <div id="step1">
+            <div class="content-box">
+                <p class="text-gray-700 text-lg">Enter keywords about topics you're interested in:</p>
+                <input type="text" id="keywords" placeholder="e.g., environment, technology"
+                    class="w-full p-3 border rounded mt-3">
+                <button id="fetchQuestionsButton"
+                    class="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Submit</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Select a Question -->
+        <div id="step2" class="hidden">
+            <div class="content-box">
+                <p class="text-gray-700 text-lg">Select a question:</p>
+                <ul id="questions" class="mt-3"></ul>
+                <div class="nav-buttons">
+                    <button id="backToStep1"
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-700">Back</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Display Passage and Input Summary -->
+        <div id="step3" class="hidden">
+            <div class="content-box">
+                <p id="passage" class="text-gray-700 text-lg whitespace-pre-line"></p>
+                <textarea id="summary" placeholder="Write your summary here..."
+                    class="w-full p-3 border rounded mt-3"></textarea>
+                <button id="submitSummaryButton"
+                    class="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Submit Summary</button>
+                <div class="nav-buttons">
+                    <button id="backToStep2"
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-700">Back</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Feedback Section -->
+        <div id="feedback" class="hidden">
+            <div class="content-box">
+                <p id="feedbackText" class="text-gray-700 text-lg whitespace-pre-line"></p>
+                <div id="starRating" class="flex justify-center mt-3"></div>
+                <p id="exemplarySummary" class="text-gray-700 mt-4 text-lg"></p>
+                <div class="mt-4 flex justify-center">
+                    <button id="speakButton" class="text-blue-600 hover:text-blue-800 text-2xl">
+                        🔊 Speak Summary
+                    </button>
+                </div>
+                <div class="nav-buttons">
+                    <button id="backToStep3"
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-700">Back</button>
+                    <button id="restartButton"
+                        class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-700">Restart</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const fetchQuestionsButton = document.getElementById('fetchQuestionsButton');
+            const submitSummaryButton = document.getElementById('submitSummaryButton');
+            const restartButton = document.getElementById('restartButton');
+            const backToStep1 = document.getElementById('backToStep1');
+            const backToStep2 = document.getElementById('backToStep2');
+            const backToStep3 = document.getElementById('backToStep3');
+            const speakButton = document.getElementById('speakButton');
+
+            fetchQuestionsButton?.addEventListener('click', fetchQuestions);
+            submitSummaryButton?.addEventListener('click', evaluateSummary);
+            restartButton?.addEventListener('click', restart);
+            backToStep1?.addEventListener('click', () => navigateTo('step1', 'step2'));
+            backToStep2?.addEventListener('click', () => navigateTo('step2', 'step3'));
+            backToStep3?.addEventListener('click', () => navigateTo('step3', 'feedback'));
+            speakButton?.addEventListener('click', speakSummary);
+
+            function fetchQuestions() {
+                const keywords = document.getElementById('keywords').value.trim();
+                if (!keywords) return alert("Please enter valid keywords.");
+
+                fetch('/get_questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keywords }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        const questionsList = document.getElementById('questions');
+                        questionsList.innerHTML = '';
+                        data.forEach(question => {
+                            const li = document.createElement('li');
+                            li.textContent = question;
+                            li.className = 'p-3 bg-gray-200 rounded my-2 hover:bg-gray-300 cursor-pointer';
+                            li.addEventListener('click', () => fetchPassage(question));
+                            questionsList.appendChild(li);
+                        });
+                        navigateTo('step2', 'step1');
+                    })
+                    .catch(error => console.error('Error fetching questions:', error));
+            }
+
+            function fetchPassage(question) {
+                fetch('/get_passage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('passage').textContent = data.passage;
+                        navigateTo('step3', 'step2');
+                    })
+                    .catch(error => console.error('Error fetching passage:', error));
+            }
+
+            function evaluateSummary() {
+                const summary = document.getElementById('summary').value.trim();
+                const passage = document.getElementById('passage').textContent.trim();
+                if (!summary) return alert("Please write a summary.");
+
+                fetch('/evaluate_summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ summary, passage }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('feedbackText').textContent = data.feedback;
+                        displayStarRating(data.rating);
+
+                        fetch('/get_exemplary_summary', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ passage }),
+                        })
+                            .then(response => response.json())
+                            .then(summary => {
+                                document.getElementById('exemplarySummary').textContent = summary.exemplary;
+                            })
+                            .catch(error => console.error('Error fetching exemplary summary:', error));
+
+                        navigateTo('feedback', 'step3');
+                    })
+                    .catch(error => console.error('Error evaluating summary:', error));
+            }
+
+            function displayStarRating(rating) {
+                const starContainer = document.getElementById('starRating');
+                starContainer.innerHTML = '';
+                for (let i = 1; i <= 10; i++) {
+                    const star = document.createElement('span');
+                    star.className = 'star ' + (i <= rating ? '' : 'inactive');
+                    star.textContent = '★';
+                    starContainer.appendChild(star);
+                }
+            }
+
+            function speakSummary() {
+                const summary = document.getElementById('exemplarySummary').textContent.trim();
+                if (!summary) {
+                    alert("No summary available to speak.");
+                    return;
+                }
+
+                const utterance = new SpeechSynthesisUtterance(summary);
+                utterance.lang = 'en-US';
+                utterance.rate = 1;
+                utterance.pitch = 1;
+
+                const voices = speechSynthesis.getVoices();
+                const femaleVoice = voices.find(voice => voice.name.includes('Female') || voice.name.includes('Google US English'));
+                if (femaleVoice) {
+                    utterance.voice = femaleVoice;
+                }
+
+                speechSynthesis.speak(utterance);
+            }
+
+            function restart() {
+                navigateTo('step1', 'feedback');
+                document.getElementById('keywords').value = '';
+                document.getElementById('summary').value = '';
+                document.getElementById('questions').innerHTML = '';
+                document.getElementById('feedbackText').textContent = '';
+                document.getElementById('starRating').innerHTML = '';
+                document.getElementById('exemplarySummary').textContent = '';
+            }
+
+            function navigateTo(show, hide) {
+                document.getElementById(show).classList.remove('hidden');
+                document.getElementById(hide).classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
